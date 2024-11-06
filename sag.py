@@ -39,7 +39,7 @@ def is_fully_latex(text):
 
     # Check if the remaining text contains only numbers, operators, or whitespace
     remaining_chars = set(cleaned_text.strip())
-    allowed_chars = set("0123456789+-*/()= ")
+    allowed_chars = set("0123456789+-*/(),= ")
 
     return len(remaining_chars - allowed_chars) == 0
 
@@ -87,7 +87,7 @@ def finish_last_equation(text):
         if x:
             simplified_exp, spaces_left, spaces_right = x
             return text + " " * (spaces_left - spaces_right) + latex(simplified_exp)
-    match = re.search(r"([\d\.\+\-\*\/\(\)\^]+)(\s*)=(\s*)$", last_line)
+    match = re.search(r"([\d\.\+\-\*\/\(\)\^,]+)(\s*)=(\s*)$", last_line)
     if match:
         # Group 1: Expression to the left of the equals sign
         expression = match.group(1).strip()
@@ -119,6 +119,14 @@ if __name__ == "__main__":
         "139 \\cdot 11 =  ",
         "139 x 11  = ",
         "This is a text without an equation.",
+        """To find the product of 178634 and 17983432, I'll perform the calculation.
+
+178,634 * 17,983,432 =""",
+        """To find the product of 178634 and 17983432, we can use the standard multiplication algorithm. However, for large numbers, it's often more practical to use a calculator or a computer for exact results. Here, I'll provide the exact product using a calculator.
+
+First, we input the numbers into a calculator:
+
+\\[ 178634 \\times 17983432 =""",
     ]
 
     for case in test_cases:
