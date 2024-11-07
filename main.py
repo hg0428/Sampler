@@ -119,7 +119,11 @@ def inference(tokens, model):
 
 
 def generate_top_k_token_with_prob(
-    logits: torch.Tensor, k: int, temperature: float, min_prob: float
+    logits: torch.Tensor,
+    k: int,
+    temperature: float = 1,
+    min_prob: float = 0,
+    randomness: bool = True,
 ) -> List[Tuple[torch.Tensor, float]]:
     scaled_logits = logits / temperature
     probabilities = torch.nn.functional.softmax(scaled_logits, dim=-1)
@@ -127,12 +131,17 @@ def generate_top_k_token_with_prob(
         probabilities > min_prob, probabilities, torch.tensor(0.0)
     )
 
-    # Sample from the filtered probabilities
-    samples = torch.multinomial(probabilities, num_samples=k)
-    selected_probabilities = [prob.item() for prob in probabilities[0, samples][0]]
+    if randomness:
+        # Sample from the filtered probabilities
+        samples = torch.multinomial(probabilities, num_samples=k)
+        selected_probabilities = [prob.item() for prob in probabilities[0, samples][0]]
+    else:
+        # Get the top k indices and their probabilities
+        samples = torch.topk(probabilities, k, dim=-1).indices
+        selected_probabilities = torch.topk(probabilities, k, dim=-1).values
 
     top_k_with_prob = sorted(
-        zip(samples[0], [prob for prob in selected_probabilities if prob > 0]),
+        zip(samples[0], [prob for prob in selected_probabilities[0] if prob > 0]),
         key=lambda x: x[1],
         reverse=True,
     )
@@ -154,25 +163,24 @@ def generate(
     num_original_tokens = len(all_tokens)
     confidence = 0
     while len(all_tokens) - num_original_tokens < max_new_tokens:
-        # finished = finish_last_equation(all_tokens_text)
-        # if finished:
-        #     tokens = tokenizer.encode(finished.removeprefix(all_tokens_text))
-        #     all_tokens_text = finished
-        #     all_tokens += tokens
+        finished = finish_last_equation(all_tokens_text)
+        if finished:
+            new_tokens = tokenizer.encode(finished.removeprefix(all_tokens_text))
+            new_tokens_tensor = torch.tensor([new_tokens])
+            tokens = torch.cat((tokens, new_tokens_tensor), dim=1)
+            all_tokens_text = finished
+            all_tokens += new_tokens
         # Get logits from the model
-        # try:
-        logits = inference(tokens[0], model)
-        # except:
-        #     print(tokens)
-        #     # print("\x1b[31m", "error:", tokenizer.decode(tokens), ":\x1b[0m")
-        #     sys.exit(1)
-        #     num_generated = len(all_tokens) - num_original_tokens
-        #     # return all_tokens, confidence / num_generated if num_generated > 0 else 0
+        try:
+            logits = inference(tokens[0], model)
+        except:
+            print(tokens, deep)
+            sys.exit(1)
 
         post_dry = calculate_dry_penalty(tokens, logits)
 
         top_k_with_prob = generate_top_k_token_with_prob(
-            post_dry, k, temperature, min_prob
+            post_dry, k, temperature, min_prob, False
         )
         chosen_token = None
         if top_k_with_prob[0][1] > sum([x[1] for x in top_k_with_prob[1:]]):
@@ -193,11 +201,11 @@ def generate(
                     max_new_tokens=depth,
                     deep=deep + 1,
                 )
-                print(
-                    " " * deep
-                    + tokenizer.decode(generated_tokens).replace("\n", "\\n"),
-                    generation_confidence,
-                )
+                # print(
+                #     "-" * deep
+                #     + tokenizer.decode(generated_tokens).replace("\n", "\\n"),
+                #     float(generation_confidence),
+                # )
                 if generation_confidence > best_confidence:
                     best_confidence = generation_confidence
                     best_tokens = generated_tokens
@@ -213,7 +221,9 @@ def generate(
             all_tokens.append(chosen_token)
             all_tokens_text += tokenizer.decode([chosen_token])
             confidence += top_k_with_prob[0][1]
+        if deep == 0:
+            print(all_tokens_text, "\nNEW:")
     return all_tokens, confidence
 
 
-print(tokenizer.decode(generate(tokenizer.encode("\\frac{2}{2} + \\frac{3}{2} ="))[0]))
+print(tokenizer.decode(generate(tokenizer.encode("1+1="))[0]))

@@ -37,6 +37,9 @@ def is_fully_latex(text):
     # Remove all LaTeX-like structures from the string
     cleaned_text = re.sub(latex_regex, "", text)
 
+    if ", " in cleaned_text:
+        return False  # Comma is only allowed for numbers (1,234). We don't support anything with arrays, so if there is a space, don't match it.
+
     # Check if the remaining text contains only numbers, operators, or whitespace
     remaining_chars = set(cleaned_text.strip())
     allowed_chars = set("0123456789+-*/(),= ")
@@ -58,12 +61,12 @@ def evaluate_latex(equation):
 
         # Group 3: Spaces to the right of the equals sign
         spaces_right = len(match.group(3))
-        try:
-            parsed_exp = parse_latex(expression)
+        # try:
+        parsed_exp = parse_latex(expression)
 
-            simplified_exp = parsed_exp.simplify()
-        except:
-            return None
+        simplified_exp = parsed_exp.simplify()
+        # except:
+        #     return None
 
         return simplified_exp, spaces_left, spaces_right
 
@@ -81,13 +84,12 @@ def finish_last_equation(text):
         if x:
             simplified_exp, spaces_left, spaces_right = x
             return text + " " * (spaces_left - spaces_right) + latex(simplified_exp)
-
     if is_fully_latex(last_line):
         x = evaluate_latex(last_line)
         if x:
             simplified_exp, spaces_left, spaces_right = x
             return text + " " * (spaces_left - spaces_right) + latex(simplified_exp)
-    match = re.search(r"([\d\.\+\-\*\/\(\)\^,]+)(\s*)=(\s*)$", last_line)
+    match = re.search(r"((?:(?!,\s)[\d\-/\+*\^]|\s)+)(\s*)=(\s*)$", last_line)
     if match:
         # Group 1: Expression to the left of the equals sign
         expression = match.group(1).strip()
@@ -120,16 +122,19 @@ if __name__ == "__main__":
         "139 x 11  = ",
         "This is a text without an equation.",
         """To find the product of 178634 and 17983432, I'll perform the calculation.
-
-178,634 * 17,983,432 =""",
+        178,634 * 17,983,432 =""",
         """To find the product of 178634 and 17983432, we can use the standard multiplication algorithm. However, for large numbers, it's often more practical to use a calculator or a computer for exact results. Here, I'll provide the exact product using a calculator.
-
-First, we input the numbers into a calculator:
-
-\\[ 178634 \\times 17983432 =""",
+        First, we input the numbers into a calculator:
+        \\[ 178634 \\times 17983432 =""",
+        "1+1=2, 2+2=",
     ]
 
     for case in test_cases:
         result = finish_last_equation(case)
+        print(f"Extracted equation: {result}")
+        print()
+    while True:
+        equation = input("Enter an equation: ")
+        result = finish_last_equation(equation)
         print(f"Extracted equation: {result}")
         print()
